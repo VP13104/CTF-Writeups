@@ -9,15 +9,15 @@ The objective of this repository is to document the methodology, tools, techniqu
 ---
 
 ## Repository Structure
-CTF-Writeups/
-│
-├── README.md
-├── screenshots/
-│
-├── HTB/
-├── TryHackMe/
-├── Vulnhub/
-└── Other-CTFs/
+CTF-Writeups/<br>
+|<br>
+├── README.md<br>
+├── screenshots/<br>
+│<br>
+├── HTB/<br>
+├── TryHackMe/<br>
+├── Vulnhub/<br>
+└── Other-CTFs/<br>
 
 
 ---
