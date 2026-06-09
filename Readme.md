@@ -28,29 +28,8 @@ The repository may include challenges from:
 
 - Hack The Box (HTB)
 - TryHackMe
-- PicoCTF
-- CyberDefenders
-- BlueTeamLabs Online
-- National & University CTF Competitions
-- Community Security Challenges
-
-Challenge categories include:
-
-- Web Application Security
-- Network Security
-- Digital Forensics
-- Threat Hunting
-- Malware Analysis
-- Reverse Engineering
-- Cryptography
-- Steganography
-- OSINT
-- Binary Exploitation
-- Privilege Escalation
-- Active Directory Security
-- Cloud Security
-
----
+- Vulnhub
+- Other-CTFs
 
 ## Writeup Format
 
@@ -70,10 +49,12 @@ Each writeup generally includes:
 
 ### Methodology
 
+- Reconnaissance 
 - Enumeration
 - Analysis
 - Exploitation
-- Investigation Process
+- Initial access
+- Privilege Escalation
 - Flag Discovery
 
 ### Tools Used
@@ -84,12 +65,9 @@ Examples:
 - Wireshark
 - Burp Suite
 - Volatility
-- Autopsy
 - CyberChef
 - John the Ripper
 - Hashcat
-- BloodHound
-- Impacket
 - Metasploit
 
 ### Lessons Learned
@@ -98,7 +76,7 @@ Key takeaways, attack techniques, defensive insights, and references for further
 
 ---
 
-## Disclaimer
+## 🟥 Disclaimer
 
 This repository is intended for:
 
@@ -111,22 +89,7 @@ All activities documented were performed in legal lab environments, training pla
 
 ---
 
-## Skills Demonstrated
-
-- Security Analysis
-- Threat Detection
-- Incident Investigation
-- Vulnerability Assessment
-- Penetration Testing
-- Digital Forensics
-- Network Traffic Analysis
-- Log Analysis
-- Malware Investigation
-- Security Tooling
-
----
-
-## Author
+## 🖋️ Author
 
 **Vineeth Poojary**
 
@@ -142,8 +105,8 @@ Cybersecurity Professional with interests in:
 
 ### Connect
 
-- LinkedIn: [Add Your LinkedIn URL]
-- GitHub: [Add Your GitHub URL]
+- 🔗 LinkedIn: https://www.linkedin.com/in/vineethspoojary
+- 📧 Email: v1work@outlook.com
 
 ---
 
