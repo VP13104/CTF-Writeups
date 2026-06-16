@@ -12,7 +12,7 @@
 # Reconnaissance
 scan the machine for services and open ports
 
-[Nmap Scan](../Try-Hack-Me/Images/break-out-of-cage/nmap%20scan.png)
+[Nmap Scan](../Try-Hack-Me/images/break-out-of-cage/nmap%20scan.png)
 
 nmap results show:
 | Port      | Service       |
@@ -25,7 +25,7 @@ nmap results show:
 
 Lets check, FTP allows anonymous login
 
-[FTP login](../Try-Hack-Me/Images/break-out-of-cage/ftp%20login.png)
+[FTP login](../Try-Hack-Me/images/break-out-of-cage/ftp%20login.png)
 
 Got a file `dad_tasks`<br>
 ```
@@ -35,7 +35,7 @@ UWFwdyBFZWtjbCAtIFB2ciBSTUtQLi4uWFpXIFZXVVIuLi4gVFRJIFhFRi4uLiBMQUEgWlJHUVJPISEh
 encoded with `base64`, when decoded it results in an another jumbed text phrase<br>
 used [chiper Identifier](https://www.dcode.fr/cipher-identifier) to figure out the chiper used got a many suggestions. Let's keep these aside and drill into the webpage and find any key if possible. 
 
-[Webpage](../Try-Hack-Me/Images/break-out-of-cage/webpage.png)
+[Webpage](../Try-Hack-Me/images/break-out-of-cage/webpage.png)
 
 A simple static page with all page links dead. Lets run gobuster and find any useful directories 
 ```
@@ -49,9 +49,9 @@ A simple static page with all page links dead. Lets run gobuster and find any us
 Of all the directories `/auditions` has a corrupted audio file.<br>
 Checking the file we hear Nicholas Cage talking and a weird noise. After checking the noise in a [spectrogram](https://www.boxentriq.com/steganography/audio-spectrogram) we can see some text:
 
-[Auditions directory](../Try-Hack-Me/Images/break-out-of-cage/auditions%20directory.png)
+[Auditions directory](../Try-Hack-Me/images/break-out-of-cage/auditions%20directory.png)
 
-[Audio Spectrogram](../Try-Hack-Me/Images/break-out-of-cage/audio-file.png)
+[Audio Spectrogram](../Try-Hack-Me/images/break-out-of-cage/audio-file.png)
 
 ## cracking password
 After all the details collected <br>
@@ -72,14 +72,14 @@ In case I forget.... <password_here>
 # Initial Access
 
 ssh login 
-[ssh login](../Try-Hack-Me/Images/break-out-of-cage/ssh%20login.png)
+[ssh login](../Try-Hack-Me/images/break-out-of-cage/ssh%20login.png)
 
 WE ARE IN!!
 
 After logging in, a random message keep appearing from cage annoying 😑.<br>
 Let's run `pspy64` and find all the cornjobs running 
 
-[pspy64 list](../Try-Hack-Me/Images/break-out-of-cage/pspy64.png)
+[pspy64 list](../Try-Hack-Me/images/break-out-of-cage/pspy64.png)
 
 Found a scripting runnning at `/opt/.dads_scripts/spread_the_quotes.py` 
 ```
@@ -113,7 +113,7 @@ nc -lvnp 4444
 
 Wait for sometime, and walla shell into cage!!
 
-[cage shell](../Try-Hack-Me/Images/break-out-of-cage/cage%20login.png)
+[cage shell](../Try-Hack-Me/images/break-out-of-cage/cage%20login.png)
 
 # Privilege Escalation 
 
@@ -149,9 +149,9 @@ It worked got root password!!
 
 The Root Flag is in an email in `/root/email_backup`
 
-[USER FLAG](../Try-Hack-Me/Images/break-out-of-cage/user%20flag.png)
+[USER FLAG](../Try-Hack-Me/images/break-out-of-cage/user%20flag.png)
 
-[ROOT FLAG](../Try-Hack-Me/Images/break-out-of-cage/root%20flag.png)
+[ROOT FLAG](../Try-Hack-Me/images/break-out-of-cage/root%20flag.png)
 
 Root flag & User Flag found!<br>
 Hope this Walkthrough was fun, easy to follow and helpful to you.<br>
