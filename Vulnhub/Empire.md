@@ -9,8 +9,8 @@
 |Tools              | nmap, gobuster, ffuf, john, [GTFobins](https://gtfobins.org/), [Seclists](https://github.com/danielmiessler/SecLists), [cyberchef](https://cyberchef.io/) |
 
 # Reconnaissance
-Found IP as `10.0.2.16`
-let’s scan the machine for running services and ports<br>
+The target machine is identified at 10.0.2.16.
+Perform an Nmap scan to enumerate the open ports and running services:<br>
 `nmap -A -T4 10.0.2.16`
 
 [Nmap Scan](../Vulnhub/images/Empire/image.png)
@@ -20,79 +20,76 @@ let’s scan the machine for running services and ports<br>
 |22   | ssh     |
 |80   | http    |
 
-Let's check out the webpage
+Browse to the HTTP service to inspect the web application.
 
 [Webpage](../Vulnhub/images/Empire/image-1.png)
 <br>
 
-A static page with just a image displayed<br>
-* checked out the source code didnt yield to anything useful.
-* `robots.txt` lead to an `~myfiles` directory that yeiled an 404 error
+The homepage consists of a simple static image with no immediately obvious functionality.<br>
+* Inspecting the page source does not reveal any useful information.
+* The `robots.txt` file references an `~myfiles` directory, but attempting to access it returns a `404 Not Found` response.
 
 # Enumeration 
-Let's go ahead with a directory scan 
+Start by performing directory enumeration with Gobuster.
 ```
 gobuster dir -u http://10.0.2.16/ -w <path to wordlist>
 ```
 [Gobuster](../Vulnhub/images/Empire/image-2.png)
 
-directory search also didnt show up with anything interesting.<br>
-since there is a mention of `~myfiles` i am hoping to find something more by fuzzing
+The Gobuster scan does not uncover any immediately useful directories.<br>
+Because the application references user-style directories `(~myfiles)`, use `ffuf` to fuzz for additional hidden paths.
 ```
 ffuf -u http://10.0.2.16/~FUZZ -w <path to wordlist>
 ```
 [ffuf scan](../Vulnhub/images/Empire/image-3.png)
 
-A directory called `secret` lets check it out
+The fuzzing process discovers a hidden directory named `~secret`.
 ```
 http://10.0.2.16/~secret
 ```
 
 [secret directory](../Vulnhub/images/Empire/image-4.png)
 
-A hint, this is good<br>
-from the hint we can determine that `icex64` is a username and there is a ssh key file somewhere waiting to be found.
-let’s fuzz some more for the ssh file, which is probably an `.txt` file
+The page contains a useful hint that advances the enumeration process.<br>
+Based on the hint, icex64 appears to be a valid username, and it strongly suggests that an SSH private key is hidden somewhere on the server.<br>
+Continue fuzzing within the discovered directory to search for hidden files, including possible text files.
 ```
 ffuf -u http://10.0.2.16/~secret/.FUZZ -w <path to wordlist> -ic -fc 403,404 -e .txt
 ```
 [ffuf 2nd scan](../Vulnhub/images/Empire/image-5.png)
 
-found `.mysecret.txt file`, lets check it out<br>
+The scan identifies a hidden file named `.mysecret.txt`. Inspecting its contents reveals a long encoded string.<br>
 ```
 http://10.0.2.16/~secret/.mysecret.txt/
 ```
-and inside it is a long encrypted text probably the ssh_key we are looking for. let’s decrypt it
+The file contains what appears to be an encoded SSH private key. let’s decrypt it<br>
 but first need to figure out the encryption<br>
 
-let’s use an cipher identifier to figure this out
+Use a cipher identification tool to determine the encoding format.
 
 [Chiper Identifier](../Vulnhub/images/Empire/image-6.png)
 
-it’s base58!<br>
+The data is Base58-encoded. Decoding it with CyberChef reveals its original contents.<br>
 let’s use cyberchef to decrypt this.
 
 [Cyber Chef](../Vulnhub/images/Empire/image-7.png)
 
 # Exploitation
 
-The decrypted data is a ssh private key, save it into a txt file
+The decoded output is an encrypted SSH private key. Save it locally as `priv_key.txt`.
 
 [Priv-key.txt](../Vulnhub/images/Empire/image-8.png)
 
-Now to crack the password to ssh<br>
-we need to convert `priv-key.txt` into an hash file then run it through john
-
-let’s use ssh2john to convert
+Since the private key is passphrase-protected, recover the passphrase before attempting authentication.<br>
+Use `ssh2john` to extract a crackable hash from the private key, then run it through John the Ripper.
 
 [ssh2john](../Vulnhub/images/Empire/image-9.png)
 
-now we have the hash file ssh_key lets run it through john
+Once the hash has been generated, crack it with John the Ripper.
 
 [John](../Vulnhub/images/Empire/image-10.png)
 
-lets try and login with ssh using
-
+The recovered credentials are:<br>
 username: icex64<br>
 password: P@55w0rd!<br>
 hash file: priv_key.txt
@@ -104,23 +101,23 @@ ssh icex64@10.0.2.16 -i priv_key.txt
 ```
 [ssh Login](../Vulnhub/images/Empire/image-11.png)
 
-Login successfull!!!!!!
+Using the recovered passphrase and private key successfully establishes an SSH session as `icex64`.
 
 # Privilege Escalation 
 
-run sudo -l to check for user permissions
+Enumerate the user's `sudo` privileges:
 
-[sudo](../Vulnhub/images/Empire/image-13.png)
+[sudo -l](../Vulnhub/images/Empire/image-13.png)
 
-lets check out these files
+The permitted files warrant closer inspection.
 
 [note.txt & heist.py](../Vulnhub/images/Empire/image-14.png)
 
-looks like heist.py is calling an python library webbrowser<br>
+Reviewing `heist.py` shows that it imports Python's built-in `webbrowser` module.<br>
 lets check it out `cd /usr/lib/python3.9/webbrowser.py` <br>
 searched around internet about webbroswer library and i came across [this article](https://www.hackingarticles.in/linux-privilege-escalation-python-library-hijacking/)
 
-let’s levrage this and switch users 
+By modifying the imported module to execute arbitrary commands, it is possible to spawn a shell as the target user. 
 - open the file and add a line
 `os.system("/bin/bash")`
 
@@ -131,14 +128,14 @@ sudo -u arsene /usr/bin/python3.9 /home/arsene/heist.py
 ```
 [user switch](../Vulnhub/images/Empire/image-16.png)
 
-Yess!! user switched<br>
+The library hijacking attack successfully provides a shell as the arsene user, but further privilege escalation is still required.<br>
 but still not root privilege<br>
-So, lets continiue to dig `sudo -l`
+Enumerating `arsene`'s sudo permissions reveals another privilege escalation opportunity `sudo -l`
 
 [sudo arsene](../Vulnhub/images/Empire/image-17.png)
 
-user has root permission on pip binary.<br>
-let’s check out GTFobins for ways to escalate this to root access
+The arsene account is permitted to execute pip with elevated privileges.<br>
+Consulting GTFOBins shows that `pip` can be abused to obtain a root shell.
 ```
 TF=$(mktemp -d)
 
@@ -148,13 +145,13 @@ sudo pip install $TF
 ```
 [binary exploit](../Vulnhub/images/Empire/image-18.png)
 
-<b>yay!! finally we have root access</b>
+<b>Executing the GTFOBins payload successfully spawns a root shell.</b>
 
 [User flag](../Vulnhub/images/Empire/image-12.png)<br>
 [root flag](../Vulnhub/images/Empire/image-19.png)
 
 Root flag & User Flag found!
 
-Hope this Walkthrough was fun, easy to follow and helpful to you.<br>
+I hope this walkthrough was clear, informative, and easy to follow.<br>
 
 Happy Hacking ~!!!

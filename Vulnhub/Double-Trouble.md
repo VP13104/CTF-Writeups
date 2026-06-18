@@ -8,14 +8,12 @@
 | Difficulty    | Medium        |
 | Tools         | nmap, gobuster, stegseek, wget, sqlmap, burp |
 
-Let’s dive in
-find the IP of the machine
+Let’s Begin by identifying the target machine's IP address on the local network:
 `nmap <ip range>` <br>
 
 [nmap](../Vulnhub/images/double-trouble/image.png) <br>
 
-Found it!!<br>
-next up a nmap scan to find better insite on the machine<br>
+After locating the target, perform a more detailed Nmap scan to enumerate open ports and running services:<br>
 `nmap -A -T4 <ip address>` <br>
 
 [nmap results](../Vulnhub/images/double-trouble/image-1.png)
@@ -25,12 +23,12 @@ next up a nmap scan to find better insite on the machine<br>
 |-----|---------|
 |22   | ssh     |
 |80   | http    |
-let’s go ahead and check out the webpage on port 80 <br>
+With the scan complete, browse to the web service running on port 80.<br>
 
 [Webpage](../Vulnhub/images/double-trouble/image-2.png)
 
-A login page that is running using qdPM 9.1, did a simple google search and found its vulnerable to RCE but there’s a draw-back its needs valid login credentials and as of now i got nothing. <br>
-So lets move to directory enumeration, whenever a webpage is invovled enumerating its directories is one of the best ways to find a path. 
+The web application is identified as qdPM 9.1. Public research reveals a known remote code execution (RCE) vulnerability; however, exploitation requires valid authentication credentials, which are not yet available. <br>
+Since direct exploitation is not currently possible, proceed with directory enumeration to identify hidden resources and potential attack vectors.
 
 # Enumeration 
 
@@ -39,25 +37,26 @@ So lets move to directory enumeration, whenever a webpage is invovled enumeratin
 [Gobuster](../Vulnhub/images/double-trouble/image-3.png)
 <br>
 
-Whoa!! a /secret file, now that sounds interesting lets check it out<br>
+Gobuster discovers a /secret endpoint, making it a natural candidate for further investigation.<br>
 
 [secret.text](../Vulnhub/images/double-trouble/image-4.png)
 <br>
 
-The /secret file leads to a image file, typically in CTF’s image files hide hints in them using "steganography"<br>
-let’s use wget to download the image and "Stegseek" to analyse the file<br>
+The /secret resource references an image file. In CTF-style challenges, images frequently contain hidden information embedded using steganography.<br>
+Download the image with wget and analyze it using Stegseek.<br>
 
 [wget](../Vulnhub/images/double-trouble/image-5.png)
 <br>
 [stegseek](../Vulnhub/images/double-trouble/image-6.png)
 <br>
-Great! found email id and password, let’s use these and try and login into the login page we got at the begining<br>
+Stegseek successfully extracts an email address and password from the image.<br>
+Use the recovered credentials to authenticate to the qdPM login portal.<br>
 
 [Webpage_2](../Vulnhub/images/double-trouble/image-7.png)
 <br>
-It works, we are in<br>
-now remember the Vulnerablility we found at the start lets use it right now,<br>
-search for a way to submit a file (php-reverse shell)<br>
+The credentials are valid, granting authenticated access to the application.<br>
+Now that authentication has been obtained, revisit the previously identified qdPM file upload vulnerability.<br>
+Locate the file upload functionality and prepare to upload a PHP reverse shell.<br>
 
 [webpage_3](../Vulnhub/images/double-trouble/image-8.png)
 <br>
@@ -81,12 +80,12 @@ $debug = 0;
 
 # Exploitation
 
-now go to http://ipadress/uploads then click on users
+After uploading the payload, navigate to the `http://IP-ADDRESS/uploads/users` directory to execute it.
 
 [uploads](../Vulnhub/images/double-trouble/image-9.png)
 <br>
 
-Before clicking on the file and running it we need to set a listener on our attack machine<br>
+Before triggering the payload, start a Netcat listener on the attacker machine:<br>
 `nc -lvnp 4444` <br>
 
 [reverse shell](../Vulnhub/images/double-trouble/image-10.png)
@@ -94,12 +93,11 @@ Before clicking on the file and running it we need to set a listener on our atta
 
 # Initial Access
 
-reverse shells are normally not pretty and stable<br>
-lets stable it<br>
+The initial reverse shell is non-interactive. Upgrade it to a fully interactive TTY using Python:<br>
 ```
 python3 -c 'import pty;pty.spawn("/bin/bash")'
 ```
-nothing much to be found in www-data, let’s escalate our privileges
+Enumeration as www-data reveals limited access, so the next objective is privilege escalation.
 
 # Privilege Escalation
 
@@ -109,8 +107,8 @@ sudo -l
 [sudo](../Vulnhub/images/double-trouble/image-11.png) 
 <br>
 
-`/usr/bin/awk` seems interesting lets check GTFObins
-found a way to bypass local security and gain root access using awk
+Reviewing the `sudo` configuration shows that `awk` can be executed with elevated privileges. Consulting GTFOBins reveals a straightforward method for spawning a privileged shell.<br
+GTFOBins provides the following payload to obtain a root shell via awk:<br>
 [awk | GTFOBins](https://gtfobins.org/gtfobins/awk/#shell)
 
 ```
@@ -120,10 +118,11 @@ sudo awk ‘BEGIN {system(“/bin/sh”)}’
 [root access 1 ](../Vulnhub/images/double-trouble/image-12.png)
 <br>
 
-Got root!! Again we have to stabalize the shell.<br>
-well inside the /root the directory found another VM `Doubletrouble.ova`<br>
-This explains the name Double trouble 😅<br>
-lets download it and investigate, but inorder to download it we will have to move it to `/var/www/html directory` 
+Executing the payload yields root access. Upgrade the shell if necessary for improved usability.<br>
+While exploring the /root directory, an OVA image named DoubleTrouble.ova is discovered, revealing that the challenge contains a second virtual machine.`Doubletrouble.ova`<br>
+This discovery explains the name of the challenge: Double Trouble.<br>
+Transfer the OVA image to the attacker machine and import it into a virtualization platform for analysis.<br>
+but inorder to download it we will have to move it to `/var/www/html directory` 
 
 [DoubleTrouble.ova](../Vulnhub/images/double-trouble/image-13.png)
 <br>
@@ -137,6 +136,7 @@ there are many ways you can go ahead with this
 1. A shared folder host machine.
 2. Start a http server in your attack machine and then through your host machine browser you will be able to download the file.
 
+## Second Machine Enumeration
 <b>Nmap results</b>
 scan results on the 2nd machine reveals 
 |Port | Service |
@@ -149,21 +149,22 @@ lets check out the webpage<br>
 [Webpage_4](../Vulnhub/images/double-trouble/image-14.png)
 <br>
 
-very basic static webpage,
-Tried common username and passwords no luck no useful error displayed too.
-next up a directory enumeration, the results did point anything usefull either So lets go ahead and intercept the communication and figure something out
+The second machine hosts a simple login page. Default credentials and common username/password combinations prove unsuccessful, and the application exposes little information through error messages.<br>
+Directory enumeration also fails to reveal any significant findings.<br>
+As a result, intercept the application's requests with Burp Suite and inspect its behavior more closely.<br>
 turn on burpsuite and intercept the traffic<br>
 
 [Burp suite](../Vulnhub/images/double-trouble/image-15.png)
 <br>
-tested the application for various web application security flaws. By studying the application error in the response, we identified SQL injection vulnerability in the name parameter. In the next step, we will be using SQLMap to exploit this vulnerability.
+Testing the application for common web vulnerabilities reveals that the name parameter is susceptible to SQL injection based on its error responses.<br>
+This vulnerability can be automated using SQLMap to enumerate the backend database.<br>
 copy the request to a txt file
 ```
 sqlmap -r request.txt --dbs
 ```
 [sqlmap](../Vulnhub/images/double-trouble/image-16.png)
 <br>
-Found two database
+SQLMap identifies the following databases:
 - doubletrouble
 - information_schema
 
@@ -173,7 +174,7 @@ sqlmap -r response.txt -D doubletrouble --tables
 ```
 [sqlmap_2](../Vulnhub/images/double-trouble/image-17.png)
 <br>
-Found a table named `users`, lets get data inside users
+The doubletrouble database contains a users table, which can be dumped to recover stored credentials.
 ```
 sqlmap -r response.txt -T users --dump
 ```
@@ -187,17 +188,19 @@ found two users with password
 |montreux|GfsZxc1|
 |clapton | ZubZub99|
 
-ssh using `clapton` login worked !!
+The recovered credentials for `clapton` successfully authenticate over SSH, providing user-level access.
 ```
 got user.txt
 6CEA7A737C7C651F6DA7669109B5FB52
 ```
+
+## Second VM Privilege Escalation 
 Let’s move towards Root Flag, `uname -a` 
 
 [uname](../Vulnhub/images/double-trouble/image-19.png)
 
-"google linux 3.2.0–4-amd64 exploit"<br>
-came across a exploit called <b>dirty_cow [(CVE-2016–5195)](https://dirtycow.ninja/)</b><br>
+Checking the kernel version with uname -a reveals an outdated release.<br>
+A search for publicly known privilege escalation vulnerabilities identifies Dirty COW (CVE-2016-5195) as a viable attack vector [(CVE-2016–5195)](https://dirtycow.ninja/)<br>
 <para>“A [race condition](https://en.wikipedia.org/wiki/Race_condition) was found in the way the Linux kernel’s memory subsystem handled the copy-on-write (COW) breakage of private read-only memory mappings. An unprivileged local user could use this flaw to gain write access to otherwise read-only memory mappings and thus increase their privileges on the system.”</para>
 Download the exploit from exploit-db<br>
 you can either download the exploit directly into the target machine using wget<br>
@@ -212,12 +215,14 @@ gcc -pthread 40839.c -o dirty.c -lcrypt
 ```
 [dirty.c](../Vulnhub/images/double-trouble/image-20.png)
 <br>
-enter a new password and then ssh login with user firefart and the new password<br>
+After compiling and executing the exploit, specify a new password when prompted. Then log in as the `firefart` user using the newly created credentials to obtain root access.<br>
 [ssh](../Vulnhub/images/double-trouble/image-21.png)
 <br>
 [root access 2](../Vulnhub/images/double-trouble/image-22.png)
 <br>
-There you have it !!!!!!!!!!!!!!!!!!!!!!!!!<br>
+With successful exploitation of the Dirty COW vulnerability, root access is obtained and the final flag can be retrieved.<br>
 root access and root.txt<br>
-Hope this walkthrough was useful and easy to follow.<br>
-Happy Hacking !!
+
+I hope this walkthrough was clear, informative, and easy to follow.<br>
+
+Happy Hacking ~!!!
