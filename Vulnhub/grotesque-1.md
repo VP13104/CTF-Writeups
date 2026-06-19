@@ -10,12 +10,11 @@
 
 
 # Reconnaissance
-Let’s find the IP address of the machine
-
+Begin by identifying the target machine's IP address on the local network.
 [arp-scan](../Vulnhub/images/grotesque-1/image.png)
 
 IP:- 10.0.2.22
-let’s scan the machines for ports and services
+perform an Nmap scan to enumerate its open ports and services.
 
 [nmap scan](../Vulnhub/images/grotesque-1/image-1.png)
 
@@ -25,7 +24,7 @@ nmap results show:
 | 66/tcp    | http          |
 | 80/tcp    | http          |
 
-Let’s check out the webpage
+Browse to the HTTP services running on ports 66 and 80 to inspect the web applications.
 
 [webpage port 66](../Vulnhub/images/grotesque-1/image-2.png)
 
@@ -33,11 +32,11 @@ Let’s check out the webpage
 
 # Enumeration
 
-Enumeration for directories using gobuster for both ports 66 and 80 didnt yield anything useful.
+Directory enumeration with Gobuster on both ports `66` and `80` does not reveal any significant findings.
 
 [Gobuster ](../Vulnhub/images/grotesque-1/image-4.png)
 
-The webpage at port 66 reveals a zip file to download the whole project, lets analyze the files
+The application on port 66 provides a ZIP archive containing the project source code. Download and inspect its contents for useful information.
 
 [Zip file](../Vulnhub/images/grotesque-1/image-5.png)
 
@@ -49,36 +48,33 @@ Unzip the file<br>
 
 [_vvmlist](../Vulnhub/images/grotesque-1/image-7.png)
 
-Found a WordPress page on port `80 /lyricsblog` <br>
+Analysis of the extracted files reveals a WordPress installation hosted at `/lyricsblog` on port `80`. <br>
 let’s check it out.
 
 [wordpress](../Vulnhub/images/grotesque-1/image-8.png)
 
-A simple page with song lyrics.<br>
-enumerate the directories using Gobuster
+The site appears to be a basic lyrics blog. Continue enumerating the WordPress installation and its directories.
 
 [gobuster](../Vulnhub/images/grotesque-1/image-9.png)
 
 `http://ip address/lyricsblog/wp-admin` <br>
-its redirecting to a login page wp-login.php
-
+The `/wp-admin` endpoint redirects to the standard WordPress login page (`wp-login.php`).
 [login page](../Vulnhub/images/grotesque-1/image-10.png)
 
-To find usernames of a wordpress webpage best use wpscan
+WPScan is an effective tool for enumerating WordPress users and attack surfaces.
 ```
 wpscan --url http://10.0.2.22/lyricsblog -e at -e ap -e u
 ```
 
 [wpscan](../Vulnhub/images/grotesque-1/image-11.png)
 
-There you have it.
-Username: erdalkomurcu<br>
-tried brute force attack to crack the password but no payloads worked. Just a hunch since it was a lyrics page what if one of the lyrics is the password. 
+WPScan successfully identifies the following valid username: erdalkomurcu<br>
+Password guessing and brute-force attempts prove unsuccessful.<br>
+Given the theme of the website, consider whether one of the published lyrics may be used as the administrator's password.
 
 [lyric](../Vulnhub/images/grotesque-1/image-12.png)
 
-copy the lyrics and paste into a .txt file remove all the space except the ones between the paragraphs.<br>
--> convert it md5 & then convert it into uppercase
+Copy the lyrics into a text file, preserving paragraph separation, generate the `MD5 hash` of the content, and convert the resulting hash to uppercase. The resulting value matches the administrator password.
 
 [password](../Vulnhub/images/grotesque-1/image-13.png)
 
@@ -89,18 +85,18 @@ password: BC78C6AB38E114D6135409E44F7CDDA2
 
 [wordpress login](../Vulnhub/images/grotesque-1/image-14.png)
 
-Login successful.<br>
-Now let's create a reverse shell using the wordpress site<br> 
+The derived credentials successfully authenticate to the WordPress admin panel.<br>
+With administrative access, modify a theme template to deploy a PHP reverse shell.<br> 
 `Appearance -> Theme File editor -> archive.php` <br>
-Here upload an php-reverse shell from [pentestmonkey/php-reverse-shell](https://github.com/pentestmonkey/php-reverse-shell/blob/master/php-reverse-shell.php)
+Replace the contents of archive.php with a PHP reverse shell, such as the one provided by [pentestmonkey/php-reverse-shell](https://github.com/pentestmonkey/php-reverse-shell/blob/master/php-reverse-shell.php)
 
 [reverse-shell.php](../Vulnhub/images/grotesque-1/image-15.png)
 
-start a listener
+Start a Netcat listener on the attacker machine before triggering the payload.
 ```
 nc -lvp 4444
 ```
-Now to run the reverse shell visit:-
+Access the modified archive.php page to execute the payload and establish the reverse shell:-
 ```
 http://<target-ip>/lyricsblog/wp-content/themes/twentytwentyone/archive.php
 ```
@@ -109,7 +105,7 @@ http://<target-ip>/lyricsblog/wp-content/themes/twentytwentyone/archive.php
 
 [shell](../Vulnhub/images/grotesque-1/image-17.png)
 
-Reverse shell achieved. stabalize the shell using 
+Once the reverse shell is established, upgrade it to an interactive TTY:
 ```
 python3 -c 'import pty; pty.spawn("/bin/bash")'
 ```
@@ -119,32 +115,34 @@ Let’s move up our privileges. after some snooping around found a interesting f
 
 [wp-config.php](../Vulnhub/images/grotesque-1/image-18.png)
 
-Found username and password.<br>
-`raphael & _double_trouble_ ` <br>
-change user using these credentials
+The configuration file contains credentials for another local user:<br>
+- Username: raphael 
+- Password: _double_trouble_  <br>
+Use the recovered credentials to switch to the raphael account.
 
 [su raphael](../Vulnhub/images/grotesque-1/image-19.png)
 
 ## Root Access
 
-checking contents of current directory `ls -la `
+checking contents of current directory `ls -la `<br>
+Enumerating files in the current directory reveals an interesting hidden KeePass database.
 
 [ls -la](../Vulnhub/images/grotesque-1/image-20.png)
 
-Found a hidden keepass database file, move it to your attack box<br>
-First we need to crack the password for that we need to convert `.chadroot.kbdx` into hash file and then run it through john
+Transfer the hidden KeePass database to the attacker machine for offline analysis.<br>
+Extract a crackable hash from the `.kdbx` file and use John the Ripper to recover its master password.
 
 [crack password using john](../Vulnhub/images/grotesque-1/image-21.png)
 
-Found the password, lets use it and open the database using [keeweb](https://app.keeweb.info/)
+After recovering the KeePass master password, open the database with [keeweb](https://app.keeweb.info/) to inspect its stored entries.
 
 [keeweb](../Vulnhub/images/grotesque-1/image-22.png)
 
-got four passwords try them all until you gain root access
+The database contains several stored credentials. Testing each one eventually yields the root password.
 
 [passwords](../Vulnhub/images/grotesque-1/image-23.png)
 
-There you have it root access with password `.:.subjective.:.`
+One of the recovered credentials (`.:.subjective.:.`) successfully authenticates as `root`, providing full system access.
 
 [user flag](../Vulnhub/images/grotesque-1/image-25.png)
 
@@ -152,6 +150,6 @@ There you have it root access with password `.:.subjective.:.`
 
 Root flag & User Flag found!
 
-Hope this Walkthrough was fun, easy to follow and helpful to you.<br>
-Happy Hacking ~!!!
+I hope this walkthrough was clear, informative, and easy to follow.<br>
 
+Happy Hacking ~!!!

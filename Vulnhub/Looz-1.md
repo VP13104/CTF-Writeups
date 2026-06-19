@@ -10,8 +10,8 @@
 
 # Reconnaissance
 
-Found IP:- 10.0.2.18<br>
-let’s scan the machines for ports and services<br>
+IP:- 10.0.2.18<br>
+Perform an Nmap scan to enumerate the open ports and running services:<br>
 `nmap -A -T4 <ip address>`
 
 [Nmap result](../Vulnhub/images/Looz/image.png)
@@ -24,50 +24,50 @@ nmap results show:<br>
 | 8081      | http          |
 | 3306      | mysql         |
 
-Let’s check out the webservers that are running
+Browse to the exposed web services to inspect the applications running on the target.
 
 [Webpage](../Vulnhub/images/Looz/image-1.png)
 
 # Enumeration
-
-Let’s enumerate for directories using gobuster
+Start by performing directory enumeration with Gobuster.
 
 [Gobuster](../Vulnhub/images/Looz/image-2.png)
 
-didn’t return anything useful<br>
-Let’s check the source code
+The Gobuster scan does not reveal any interesting directories or files.<br>
+Since directory enumeration yields little information, inspect the page source for hidden clues.
 
 [Source Code](../Vulnhub/images/Looz/image-3.png)
 
-Well well well found something good<br>
-Username: john<br>
-password: y0uC@n’tbr3akIT<br>
-turns out these credentials are used to login to wordpress but the login page returns an `404 error`<br>
-it's possible the word press is on another port or sub-domain 
+The source code contains what appears to be a set of credentials:<br>
+- Username: john
+- Password: y0uC@n’tbr3akIT<br>
+The credentials appear to be intended for a WordPress instance, but the expected login page returns a `404 Not Found error`.<br>
+This suggests that the WordPress installation may be hosted on a different virtual host or subdomain.
 
 [sub-domain scan](../Vulnhub/images/Looz/image-4.png)
 
-ffuf returns a sub-domain, add both domain to `/etc/hosts`<br>
-looz.com & wp.looz.com
+Fuzzing identifies an additional virtual host. Add both domains to your `/etc/hosts` file:
+- looz.com
+- wp.looz.com
 
-dirb on the new domain 
+Perform directory enumeration against the newly discovered virtual host.
 
 [dirb scan](../Vulnhub/images/Looz/image-5.png)
 
-Got the login page
+The scan reveals the WordPress login page.
 
 [Wordpress login page](../Vulnhub/images/Looz/image-6.png)
 
-Let's use the credentials we found earlier.
+Authenticate using the credentials recovered from the page source.
 
 [Wordpress Login](../Vulnhub/images/Looz/image-7.png)
 
-we are in!!!<br>
-after some searching around i found usernames and the privilege they have
+The login succeeds, providing access to the WordPress administrative interface.<br>
+Enumerating the WordPress users reveals multiple accounts along with their associated roles and privileges.
 
 [User list](../Vulnhub/images/Looz/image-8.png)
 
-Let’s use Hydra to crack “gandalf” password
+With a valid username identified, use Hydra to perform an SSH password attack against the `gandalf` account.
 
 # Exploitation 
 
@@ -76,32 +76,35 @@ hydra -l gandalf -p <path to wordlist> ip-address ssh
 ```
 [Hydra](../Vulnhub/images/Looz/image-9.png)
 
-Got the password: `highschoolmusical` 😅<br>
-Let’s go ahead and login into ssh using these credentials
+Hydra successfully recovers the following credentials:
+- Username: gandalf
+- Password: highschoolmusical
+Use the recovered credentials to establish an SSH session as `gandalf`.
 
 [ssh Login](../Vulnhub/images/Looz/image-10.png)
 
-ssh Login Succesfull 
+SSH authentication succeeds, providing an interactive shell on the target.
 
 # Privilege Escalation 
 
-Found gandalf is not allowed to run sudo, so we move towards SUID binaries
+he gandalf account has no useful sudo privileges, so enumerate SUID binaries for alternative privilege escalation paths.
 ```
 find / -prem -4000 -type f -exec ls -al {}\;2>/dev/null
 ```
 
 [SUID files](../Vulnhub/images/Looz/image-11.png)
 
-Found a interesting file shell_testv1.0<br>
-lets execute this file
+Among the discovered SUID binaries, `shell_testv1.0` stands out as unusual and warrants further investigation.<br>
+Executing the binary immediately results in elevated privileges.
 
 [shell_testv1.0](../Vulnhub/images/Looz/image-12.png)
 
-There you have it ROOT access. that was quick 
+The SUID binary spawns a root shell, providing full administrative access to the system. 
 
 [root flag](../Vulnhub/images/Looz/image-13.png)
 [user flag](../Vulnhub/images/Looz/image-14.png)
 
 Found user & root flag !!!!!!<br>
-Hope this Walkthrough was fun, easy to follow and helpful to you.<br>
-Happy Hacking ~!!!
+I hope this walkthrough was clear, informative, and easy to follow.<br>
+
+Happy Hacking ~!!!!

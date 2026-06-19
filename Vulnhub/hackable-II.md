@@ -10,12 +10,12 @@
 
 
 # Reconnaissance
-First up find the machine ip address
+Begin by identifying the target machine's IP address on the local network.
 
 [arp-scan](../Vulnhub/images/hackable-II/image.png)
 
 Ip address: 10.0.2.25
-scan the machine for services and open ports
+perform an Nmap scan to enumerate open ports and running services.
 
 [nmap scan](../Vulnhub/images/hackable-II/image-1.png)
 
@@ -26,42 +26,42 @@ nmap results show:
 | 22/tcp    | ssh           |
 | 80/tcp    | http          |
 
-FTP allows anonymous login, Lets check it out
+The Nmap scan indicates that the FTP service allows anonymous authentication, making it a good starting point for enumeration.
 
 # Enumeration
 
 [ftp login](../Vulnhub/images/hackable-II/image-2.png)
 
-found a file CALL.html let’s get the file into kali box and investigate it
+Anonymous FTP access exposes a file named `CALL.html`. Download it to the attacker machine for further analysis.
 
 [CALL.html](../Vulnhub/images/hackable-II/image-3.png)
 
-maybe a hint but i don’t get it, let’s comaback to this later if somethings links back here.<br>
+The file appears to contain a hint, but it does not immediately reveal its purpose. Keep it in mind and continue enumerating the target.<br>
 let’s see the webpage on port 80
 
 [webpage](../Vulnhub/images/hackable-II/image-4.png)
 
-apache default page<br>
-Let’s run gobuster and search for directories or files
+The web server displays the default Apache landing page with no obvious functionality.<br>
+Perform directory enumeration with Gobuster to discover hidden resources.
 
 [Gobuster](../Vulnhub/images/hackable-II/image-5.png)
 
-found direcory /files
+Gobuster discovers a `/files` directory.
 
 [/files](../Vulnhub/images/hackable-II/image-6.png)
 
-same file as earlier seems like the files directory is running on ftp server<br>
-we could use this and upload a php-reverse-shell and then run it through the webpage
+The `/files` directory contains the same `CALL.html` file retrieved via FTP, suggesting that the FTP directory is being served by the web server.<br>
+Since uploaded files appear to be web-accessible, upload a PHP reverse shell through FTP and execute it via the web server.
 
 [reverse-shell.php](../Vulnhub/images/hackable-II/image-7.png)
 
-upload the file into the ftp server using “put” command
+Upload the payload using the FTP put command, ensuring that your current local directory contains the reverse shell file.<br>
 make sure to login into ftp inside the directory where the shell file is saved<br>
 
 [FTP reverse-shell.php](../Vulnhub/images/hackable-II/image-8.png)
 
 # Exploitation
-start a listener on kali box and execute the exploit
+Start a Netcat listener on the attacker machine, then trigger the uploaded PHP payload through the browser.
 
 [trigger reverse shell](../Vulnhub/images/hackable-II/image-9.png)
 
@@ -69,43 +69,44 @@ start a listener on kali box and execute the exploit
 
 [reverse shell achieved](../Vulnhub/images/hackable-II/image-10.png)
 
-Got reverse shell
+The payload successfully establishes a reverse shell on the target.
  
-Found a txt file “important.txt” along with user directory “shrek”<br>
-when opened the txt file it hinted to run a .sh file “.runme.sh”
+During post-exploitation enumeration, an `important.txt` file is discovered alongside the `shrek` user's home directory.<br>
+Reading important.txt suggests executing a hidden script named `.runme.sh.`
 
 [./runme.sh](../Vulnhub/images/hackable-II/image-11.png)
 
-Got a md5 hash in return, Let’s crack the hash
+Running the script produces an MD5 hash, which can be cracked using an online database such as CrackStation.
 
 [crackstation](../Vulnhub/images/hackable-II/image-12.png)
 
-we now have
-username:- shrek<br>
-password:- onion<br>
-let’s use it and change user
+The recovered credentials are:
+- username:- shrek
+- password:- onion<br>
+Use them to switch to the shrek account.
 
 [shrek](../Vulnhub/images/hackable-II/image-13.png)
 
 # Privilege Escalation
-checking for sudo permission
+Enumerate the user's `sudo` privileges:
 
 [sudo -l](../Vulnhub/images/hackable-II/image-14.png)
 
-Let’s search gtfobins for exploit
+Consult GTFOBins to determine whether the permitted binaries can be abused for privilege escalation.
 
 [GTFobins](../Vulnhub/images/hackable-II/image-15.png)
 
-Remeber to change the python version here to python3.5
+Ensure that the GTFOBins payload uses the correct interpreter version (python3.5 in this case) to match the target environment.
 
 [root access](../Vulnhub/images/hackable-II/image-16.png)
 
-there we have it ROOT access
+Executing the modified GTFOBins payload successfully spawns a root shell.
 
 [User Flag](../Vulnhub/images/hackable-II/image-18.png)
 
 [Root Flag](../Vulnhub/images/hackable-II/image-17.png)
 
 Root flag & User Flag found!<br>
-Hope this Walkthrough was fun, easy to follow and helpful to you.<br>
-Happy Hacking ~!!!
+I hope this walkthrough was clear, informative, and easy to follow.<br>
+
+Happy Hacking ~!!!!

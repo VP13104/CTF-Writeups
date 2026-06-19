@@ -10,71 +10,72 @@
 | Tools             | nmap, ffuf, crackstation, hydra, pspy64  |
 
 # Reconnaissance
-Let’s find the IP address of the machine
+Begin by identifying the target machine's IP address on the local network.
 
 [arp-sudo](../Vulnhub/images/grotesque-2/image.png)
 
 IP:- 10.0.2.23<br>
-let’s scan the machines for ports and services
+Next, perform an Nmap scan to enumerate its open ports and services.
 
 [Nmap Scan](../Vulnhub/images/grotesque-2/image-1.png)
 
 nmap results show:
-22/tcp ssh & way too many other ports ranging from 32–600<br>
-let’s make a list of these ports and fuzz it with the ip address to figure out the actual port where the webpage is hosted.
+The scan reveals `SSH` on port `22` along with numerous additional `TCP` ports between `32` and `600`, making it difficult to immediately identify the web service.<br>
+To locate the HTTP service efficiently, generate a list of candidate ports and fuzz them using ffuf.
 ```
 seq 32 600 > port.txt
 ```
 [port list](../Vulnhub/images/grotesque-2/image-2.png)
 
-use ffuf to fuzz the machine -fw 39 will filter out all the response with Words=39 this way we can remove all noisy false positives.
+The -fw 39 option filters responses containing exactly 39 words, helping eliminate repetitive false positives and making the valid result easier to identify.
 ```
 ffuf -u http://<ip address>:FUZZ/ -w <path to port list> -fw 39
 ```
 [ffuf](../Vulnhub/images/grotesque-2/image-3.png)
 
 # Enumeration
-Looks like we hit jackpot at port 258.
+The fuzzing process identifies port 258 as the location of the web application.
 Let’s check it out
 
 [webpage 258](../Vulnhub/images/grotesque-2/image-4.png)
 
-At first glance we have got a user list. Let’s save it into a txt file.
+The page displays what appears to be a list of usernames. Save these entries for later use during authentication attempts.
 
 [username.txt](../Vulnhub/images/grotesque-2/image-5.png)
 
 Next up we see the message<br>
-“clap clap 👌 - 💯” checked the source code and found out the emojis aren’t just emojis they are images.
+“clap clap 👌 - 💯” Inspecting the page source reveals that the emojis are actually image files rather than Unicode characters.
 
 [source code](../Vulnhub/images/grotesque-2/image-6.png)
 
-Downloaded the images and ran it through binwalk, steghide, stegseek but did not get anythig useful. used AI for some help 😅 and i got a hint to zoom into the images. And there you have it
+Standard steganography tools such as `binwalk, steghide, and stegseek` do not reveal any hidden content.<br>
+Closer visual inspection of the images reveals hidden text embedded within the graphics.
 
 [hand emoji](../Vulnhub/images/grotesque-2/image-7.png)
 
-Found a md5 hash
-used crackstation to crack it
+Zooming into the image reveals an MD5 hash, which can be submitted to CrackStation for lookup.
 
 [crackstation](../Vulnhub/images/grotesque-2/image-8.png)
 
-Got partial result. its a 50/50 chance that this is correct but need confirmatiom.<br>
-If we go back to the message it says “👌 — 100”
+CrackStation returns a likely match, but the recovered value requires further validation.<br>
+The accompanying clue (👌 - 100) suggests subtracting 100 from the recovered numeric suffix.<br>
 so in that logic<br>
 b6e705ea1249e2bb7b0fd7dac9fcd1b3 - 100 =<br> b6e705ea1249e2bb7b0fd7dac9fcd0b3<br>
 Now back to crackstation
 
 [crackstation_2](../Vulnhub/images/grotesque-2/image-9.png)
 
-Ha!! so “solomon1” was the right answer after all
+Repeating the lookup with the adjusted hash confirms the intended password: `solomon1`.
 
 # Exploitation
 
-Now we have usernames and password, use hydra to find out the correct username
+With a list of usernames and a candidate password, use Hydra to identify the valid SSH credentials.
 ```
 hydra -L username.txt -p solomon1 ssh://ip_address
 ```
 [hydra](../Vulnhub/images/grotesque-2/image-10.png)
 
+Hydra successfully identifies the following credentials:<br>
 username: angel<br>
 password: solomon1
 
@@ -82,16 +83,16 @@ password: solomon1
 
 [ssh login](../Vulnhub/images/grotesque-2/image-11.png)
 
-Logged in!!!
+The recovered credentials provide successful SSH access as the `angel` user.
 
 # Privilege Escalation
 
-user is not allowed to run sudo commands<br>
-I did some browsing around the user files and folders found a directory named `quiet` that has a ton of files named with random numbers 
+The `angel` account has no useful `sudo` privileges.<br>
+During filesystem enumeration, a directory named quiet is discovered containing numerous randomly named files.
 
 [quiet directory](../Vulnhub/images/grotesque-2/image-12.png)
 
-Let’s use pspy64 to find all cronjobs running
+Monitor background processes with pspy64 to identify scheduled tasks running as higher-privileged users.
 
 [pspy64](../Vulnhub/images/grotesque-2/image-13.png)
 
@@ -99,8 +100,8 @@ two scripts
 - /root/check.sh 
 - /root/write.sh 
 
-are executed every two minutes, Also every file in the “quiet” directory is owned by the root.<br>
-Let’s disrupt this process and keep an eye out for changes in “quiet” and “/” directories.
+are executed every two minutes, Additionally, every file within the quiet directory is owned by root, indicating that these scripts likely interact with its contents.<br>
+To better understand the automation, remove the files in quiet and monitor the filesystem for changes in “quiet” and “/” directories.
 1. delete all files in quiet
 2. list out files in `/`
 ```
@@ -112,10 +113,9 @@ ls -lh /
 
 [the above process](../Vulnhub/images/grotesque-2/image-14.png)
 
-After deleting and monitoring it multiple times.<br>
-inside “/” directory a file named “rootcreds.txt” is created
+After clearing the directory and waiting for the scheduled tasks to execute, a new file named `rootcreds.txt` appears in the `/` directory.
 
-the file has root user credentials, use it to gain root control
+The newly created file contains credentials for the root account, which can be used to obtain full administrative access.
 
 [rootcreds.txt](../Vulnhub/images/grotesque-2/image-15.png)
 
@@ -124,21 +124,20 @@ the file has root user credentials, use it to gain root control
 [root.txt](../Vulnhub/images/grotesque-2/image-16.png)
 
 Root flag & User Flag found!<br>
-Hope this Walkthrough was fun, easy to follow and helpful to you.
+I hope this walkthrough was clear, informative, and easy to follow.<br>
 
 Happy Hacking ~!!!
-
 ---
 
 ### PS
 
-Even i wanted know what and how the rootcreds.txt appeared from.
+Curious about how `rootcreds.txt` was generated, I examined the scheduled scripts responsible for maintaining the `quiet` directory.
 Well i checked `chech.sh` and `write.sh` file
 
 [corn job files](../Vulnhub/images/grotesque-2/image-18.png)
 
-its a cron job on loop where check.sh checks quiet directory if it is empty then it will append lines “root & sweetchild” into `rootcreads.txt` and changing the file permission so everyone can read, write and execute the file<br>
-Overall purpose of check.sh<br>
+The `check.sh` script periodically checks whether `/home/angel/quiet` is empty. If no files are present, it creates `rootcreds.txt`, writes the root credentials to it, and assigns overly permissive permissions, making it accessible to all users. and changing the file permission so everyone can read, write and execute the file<br>
+The companion script, write.sh, continuously repopulates the quiet directory to ensure it normally remains non-empty.<br>
 Logic:
 1.	Go to `/home/angel/quiet`
 2.	Check if directory is empty
@@ -148,4 +147,4 @@ Logic:
 
 Overall, Purpose of write.sh<br>
 Make sure the directory is never empty<br>
-So, when we delete the directory and wait for check.sh to run, once it does file rootcreds.txt gets created.
+By deleting every file in `quiet` and waiting for the next scheduled execution, `check.sh` detects the empty directory and generates `rootcreds.txt`, unintentionally exposing the root credentials.
